@@ -1,8 +1,15 @@
 const express = require('express');
+const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
-const history = [];
+let history = [];
+
+fs.readFile('history.json', 'utf8', (err, data) => {
+    if (!err) {
+        history = JSON.parse(data);
+    }
+});
 
 app.get('/', (req, res) => {
     res.send(`
@@ -19,63 +26,34 @@ app.get('/history', (req, res) => {
     res.json(history);
 });
 
-// app.get('/:expression*', (req, res) => {
-//     const expression = req.params.expression + req.params[0];
-//     console.log(expression)
-//     const parts = expression.split('/');
-//     console.log(parts);
-
-//     if (parts.length % 2 === 0) {
-//         return res.status(400).json({ error: 'Invalid expression' });
-//     }
-//     let resString = parts[0].toString();
-//     let result = parseFloat(parts[0]);
-//     for (let i = 1; i < parts.length; i += 2) {
-//         const operator = parts[i];
-//         const number = parseFloat(parts[i + 1]);
-
-//         if (isNaN(number)) {
-//             return res.status(400).json({ error: 'Invalid number' });
-//         }
-
-//         if (operator === 'plus') {
-//             result += number;
-//             resString = resString.concat('+', number.toString(), '');
-//         } else if (operator === 'minus') {
-//             result -= number;
-//             resString = resString.concat('-', number.toString(), '');
-
-
-
-//         } else if (operator === 'into') {
-//             result *= number;
-//             resString = resString.concat('*', number.toString(), '');
-//         } else {
-//             return res.status(400).json({ error: 'Invalid operator' });
-//         }
-//     }
-
-//     const operation = {
-//         resString,
-//         result
-//     };
-
-//     history.push(operation);
-//     if (history.length > 20) {
-//         history.shift();
-//     }
-
-//     res.json(operation);
-// });
-// ...
-// ...
-
 app.get('/:expression*', (req, res) => {
+
     const expression = req.params.expression + req.params[0];
-    console.log(expression);
     const parts = expression.split('/');
-    console.log(parts);
-    let resString = parts[0].toString();
+    let resString = parts[0];
+    if (expression === 'favicon.ico') {
+        return res.status(204).end();
+    }
+    for (let i = 1; i < parts.length; i += 2) {
+        const operator = parts[i];
+        const number = parseFloat(parts[i + 1]);
+
+        if (isNaN(number)) {
+            return res.status(400).json({ error: 'Invalid number' });
+        }
+
+        if (operator === 'plus') {
+            resString = resString.concat('+', number.toString(), '');
+        } else if (operator === 'minus') {
+            resString = resString.concat('-', number.toString(), '');
+        } else if (operator === 'into') {
+            resString = resString.concat('*', number.toString(), '');
+        } else if (operator === 'by') {
+            resString = resString.concat('/', number.toString(), '');
+        } else {
+            return res.status(400).json({ error: 'Invalid operator' });
+        }
+    }
 
     if (parts.length % 2 === 0) {
         return res.status(400).json({ error: 'Invalid expression' });
@@ -114,25 +92,23 @@ app.get('/:expression*', (req, res) => {
             switch (token) {
                 case 'plus':
                     evaluationStack.push(a + b);
-                    resString = resString.concat('+', b.toString(), '');
                     break;
                 case 'minus':
                     evaluationStack.push(a - b);
-                    resString = resString.concat('-', b.toString(), '');
                     break;
                 case 'into':
                     evaluationStack.push(a * b);
-                    resString = resString.concat('*', b.toString(), '');
                     break;
                 case 'by':
                     evaluationStack.push(a / b);
-                    resString = resString.concat('/', b.toString(), '');
                     break;
             }
         }
     }
+    console.log(resString);
 
     const result = evaluationStack[0];
+
 
     const operation = {
         expression: resString,
@@ -143,13 +119,14 @@ app.get('/:expression*', (req, res) => {
     if (history.length > 20) {
         history.shift();
     }
+    fs.writeFile('history.json', JSON.stringify(history), 'utf8', (err) => {
+        if (err) {
+            console.error('Error saving history:', err);
+        }
+    });
 
     res.json(operation);
 });
-
-// ...
-
-// ...
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
